@@ -1,0 +1,147 @@
+const express = require("express");
+const { open } = require("sqlite");
+const sqlite3 = require("sqlite3");
+const path = require("path");
+                  			  /* our sample data database */
+const databasePath = path.join(__dirname, "userdata.db");
+
+const app = express();
+
+app.use(express.json());
+
+let database = null;
+
+const initializeDbAndServer = async () => {
+  try {
+    database = await open({
+      filename: databasePath,
+      driver: sqlite3.Database,
+    });
+    app.listen(3000, () =>
+      console.log("Server Running")
+    );
+  } catch (error) {
+    console.log(`DB Error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+initializeDbAndServer();
+
+const convertDbObjectToResponseObject = (dbObject) => {
+  return {
+    ID:dbObject.id
+    FirstName:dbObject.first_name
+    LastName:dbObject.last_name
+    CompanyName:dbObject.company_name
+    Age:dbObject.age
+    City:dbObject.city
+    State:dbObject.state
+    Zip:dbObject.zip
+    Email:dbObject.email
+    Web:dbObject.web
+  };
+};
+
+app.get("/api/users", async (request, response) => {
+  const { page = 1, limit = 5, name = "", sort = "id" } = request.query;
+  const getUserDataQuery = `
+    SELECT
+      *
+    FROM
+     userdata
+    WHERE
+     first_name LIKE '%${search_q}%'
+     or
+     last_name LIKE '%${search_q}%'
+    ORDER BY ${sort} asc
+    LIMIT ${limit} OFFSET ${page};
+    `;
+  const userdata = await database.all(getUserDataQuery);
+  response.send(
+    userdata.map((eachPlayer) => convertDbObjectToResponseObject(eachPlayer))
+  );
+});
+
+
+app.get("/api/users/:ID", async (request, response) => {
+  const { ID } = request.params;
+  const getUserDetails = `
+    SELECT 
+      * 
+    FROM 
+      usersdata
+    WHERE 
+      id = ${ID};`;
+  const userDetails = await database.get(getUserDetails);
+  response.send(convertDbObjectToResponseObject(userDetails));
+});
+
+
+app.post("/api/users", async (request, response) => {
+  const {
+    ID,
+    FirstName,
+    LastName,
+    CompanyName,
+    Age,
+    City,
+    State,
+    Zip,
+    Email,
+    Web,
+  } = request.body;
+  const insertUserDetails = `
+  INSERT INTO
+    usersdata (ID
+first_name,
+last_name,
+company_name,
+age,
+city,
+state,
+zip,
+email,
+web)
+  VALUES
+    ('${ID}', ${FirstName}, '${LastName}','${CompanyName}', ${Age}, '${City}','${State}','${Zip}', ${Email}, '${Web}');`;
+  const userInserted = await database.run(insertUserDetails);
+  response.status(201).send("created a new user inside the database");
+});
+
+
+app.put("/api/users/:ID", async (request, response) => {
+  const { FirstName, LastName, Age } = request.body;
+  const { ID } = request.params;
+  const updateUserDetails = `
+  UPDATE
+    usersdata
+  SET
+    first_name = '${FirstName}',
+    last_name = ${LastName},
+    age = '${Age}'
+  WHERE
+    id = ${ID};`;
+
+  await database.run(updateUserDetails);
+  response.status(200).send("users details Updated");
+});
+
+app.delete("/api/users/:ID", async (request, response) => {
+  const { ID } = request.params;
+  const userDelete = `
+    DELETE FORM
+    userdata
+    WHERE 
+    id=${ID};
+    `;
+  await database.run(userDelete);
+  response.status(200).send("delete successfully");
+});
+module.exports = app;
+
+
+
+
+
+
